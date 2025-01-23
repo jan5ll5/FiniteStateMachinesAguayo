@@ -16,6 +16,7 @@ public sealed class GameEnvironment
             {
                 instance = new GameEnvironment();
                 instance.Checkpoints.AddRange(GameObject.FindGameObjectsWithTag("Checkpoint"));
+               
             }
 
             return instance;
