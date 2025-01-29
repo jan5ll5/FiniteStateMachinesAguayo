@@ -7,7 +7,7 @@ public class State
 {
     public enum STATE
     {
-        IDLE, PATROL, PURSUE, ATTACK, SLEEP
+        IDLE, PATROL, PURSUE, ATTACK, SLEEP, RUNAWAY
     };
 
     public enum EVENT
@@ -21,13 +21,13 @@ public class State
     protected Animator anim;
     protected Transform player;
     protected State nextState;
-    protected UnityEngine.AI.NavMeshAgent agent;
+    protected NavMeshAgent agent;
 
     float visDist = 10.0f;
     float visAngle = 30.0f;
     float shootDist = 7.0f;
 
-    public State(GameObject _npc, UnityEngine.AI.NavMeshAgent _agent, Animator _anim, Transform _player)
+    public State(GameObject _npc, NavMeshAgent _agent, Animator _anim, Transform _player)
     {
         npc = _npc;
         agent = _agent;
@@ -65,6 +65,17 @@ public class State
         return false;
     }
 
+    public bool IsPlayerBehind()
+    {
+        Vector3 direction = npc.transform.position - player.position;
+        float angle = Vector3.Angle(direction, npc.transform.forward);
+        if(direction.magnitude < 2 && angle < 30)
+        {
+            return true;
+        }
+        return false;
+    }
+
     public bool CanAttackPlayer()
     {
         Vector3 direction = player.position - npc.transform.position;
@@ -78,7 +89,7 @@ public class State
 
 public class Idle : State
 {
-    public Idle(GameObject _npc, UnityEngine.AI.NavMeshAgent _agent, Animator _anim, Transform _player)
+    public Idle(GameObject _npc, NavMeshAgent _agent, Animator _anim, Transform _player)
                 : base(_npc, _agent, _anim, _player)
     {
         name = STATE.IDLE;
@@ -117,7 +128,7 @@ public class Patrol: State
 {
     int currentIndex = -1;
 
-    public Patrol(GameObject _npc, UnityEngine.AI.NavMeshAgent _agent, Animator _anim, Transform _player)
+    public Patrol(GameObject _npc, NavMeshAgent _agent, Animator _anim, Transform _player)
                 : base(_npc, _agent, _anim, _player)
     {
         name = STATE.PATROL;
@@ -161,6 +172,12 @@ public class Patrol: State
             nextState = new Pursue(npc, agent, anim, player);
             stage = EVENT.EXIT;
         }
+
+        else if (IsPlayerBehind())
+        {
+            nextState = new RunAway(npc, agent, anim, player);
+            stage = EVENT.EXIT;
+        }
     }
 
     public override void Exit()
@@ -172,7 +189,7 @@ public class Patrol: State
 
 public class Pursue: State
 {
-    public Pursue(GameObject _npc, UnityEngine.AI.NavMeshAgent _agent, Animator _anim, Transform _player)
+    public Pursue(GameObject _npc, NavMeshAgent _agent, Animator _anim, Transform _player)
                 : base(_npc, _agent, _anim, _player)
     {
         name = STATE.PURSUE;
@@ -217,7 +234,7 @@ public class Attack: State
 {
     float rotationSpeed = 2.0f;
     AudioSource shoot;
-    public Attack(GameObject _npc, UnityEngine.AI.NavMeshAgent _agent, Animator _anim, Transform _player)
+    public Attack(GameObject _npc, NavMeshAgent _agent, Animator _anim, Transform _player)
                 : base(_npc, _agent, _anim, _player)
     {
         name = STATE.ATTACK;
@@ -250,6 +267,41 @@ public class Attack: State
     {
         anim.ResetTrigger("isShooting");
         shoot.Stop();
+        base.Exit();
+    }
+}
+
+public class RunAway: State
+{
+    GameObject safeLocation;
+    public RunAway(GameObject _npc, NavMeshAgent _agent, Animator _anim, Transform _player)
+                : base(_npc, _agent, _anim, _player)
+    {
+        name = STATE.RUNAWAY;
+        safeLocation = GameObject.FindGameObjectWithTag("Safe");
+    }
+
+    public override void Enter()
+    {
+        anim.SetTrigger("isRunning");
+        agent.isStopped = false;
+        agent.speed = 6;
+        agent.SetDestination(safeLocation.transform.position);
+        base.Enter();
+    }
+
+    public override void Update()
+    {
+        if(agent.remainingDistance < 1)
+        {
+            nextState = new Idle(npc, agent, anim, player);
+            stage = EVENT.EXIT;
+        }
+    }
+
+    public override void Exit()
+    {
+        anim.ResetTrigger("isRunning");
         base.Exit();
     }
 }
